@@ -1,7 +1,7 @@
 import React, { Component } from "react"
 import { Helmet } from "react-helmet"
 
-import styles from "./index.module.scss"
+import * as styles from "./index.module.scss"
 
 import addonsButton from './img/checkForNewAddons.png';
 import homeButton from './img/home.png';
@@ -40,19 +40,23 @@ class HomePage extends Component {
       })
   }
   exit() {
-    if (window.require) window.require("electron").ipcRenderer.send("closeProgram")
+    if (typeof window !== 'undefined' && window.electronAPI) {
+      window.electronAPI.closeProgram()
+    }
   }
   settings() {
-    if (window.require) window.require("electron").ipcRenderer.send("openSettingsMenu")
+    if (typeof window !== 'undefined' && window.electronAPI) {
+      window.electronAPI.openSettingsMenu()
+    }
   }
   handleClick(id) {
     return (e) => {
       const hyperlinkData = JSON.parse(localStorage.getItem('hyperlinks'));
       const data = hyperlinkData[id];
 
-      if (window.require) {
+      if (typeof window !== 'undefined' && window.electronAPI) {
         if (data.type === 'link') {
-          window.require("electron").shell.openExternal(data.value)
+          window.electronAPI.openExternal(data.value)
           e.preventDefault();
         }
       } else if (data.type === 'link') {

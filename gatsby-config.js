@@ -1,12 +1,19 @@
 module.exports = {
   siteMetadata: {
-    title: "Gatsby Default Starter",
-    description:
-      "Kick off your next, great Gatsby project with this default starter. This barebones starter ships with the main Gatsby configuration files you might need.",
-    author: "@gatsbyjs",
+    title: "BonziBuddy",
+    description: "Your very own desktop personal digital assistant",
+    author: "@7coil",
   },
   plugins: [
-    "gatsby-plugin-sass",
+    {
+      resolve: "gatsby-plugin-sass",
+      options: {
+        // Dart Sass is used by default in gatsby-plugin-sass v6+
+        sassOptions: {
+          silenceDeprecations: ['legacy-js-api'],
+        },
+      },
+    },
     "gatsby-plugin-react-helmet",
     {
       resolve: "gatsby-source-filesystem",
@@ -20,18 +27,15 @@ module.exports = {
     {
       resolve: "gatsby-plugin-manifest",
       options: {
-        name: "gatsby-starter-default",
-        short_name: "starter",
+        name: "BonziBuddy",
+        short_name: "Bonzi",
         start_url: "/",
         background_color: "#663399",
         theme_color: "#663399",
         display: "minimal-ui",
         include_favicon: false,
-        icon: "src/images/bonzi.png", // This path is relative to the root of the site.
+        icon: "src/images/bonzi.png",
       },
     },
-    // this (optional) plugin enables Progressive Web App + Offline functionality
-    // To learn more, visit: https://gatsby.dev/offline
-    // 'gatsby-plugin-offline',
   ],
 }

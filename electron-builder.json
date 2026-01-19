@@ -1,0 +1,42 @@
+{
+  "appId": "com.bonzibuddy.app",
+  "productName": "BonziBuddy",
+  "directories": {
+    "output": "dist",
+    "buildResources": "build"
+  },
+  "files": [
+    "public/**/*",
+    "static/**/*",
+    "electron.js",
+    "preload.js",
+    "package.json"
+  ],
+  "mac": {
+    "category": "public.app-category.entertainment",
+    "icon": "build/icon.icns",
+    "target": [
+      {
+        "target": "dmg",
+        "arch": ["x64", "arm64"]
+      }
+    ],
+    "darkModeSupport": true,
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false
+  },
+  "dmg": {
+    "contents": [
+      {
+        "x": 130,
+        "y": 220
+      },
+      {
+        "x": 410,
+        "y": 220,
+        "type": "link",
+        "path": "/Applications"
+      }
+    ]
+  }
+}
