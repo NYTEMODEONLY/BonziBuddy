@@ -1,19 +1,170 @@
 # BonziBuddy 5.0
+
 <p align="center">
   <img src=".github/bbabilities2.gif">
 </p>
-<p align="center">(NOTE: This is open source computer software! He actually can't learn from you!)</p>
 
-Welcome to the world of **BonziBUDDY**! He will surf the web with you as your very own friend and sidekick! He can talk, walk, joke, browse, search, e-mail, and download like no other friend you've ever had on the net!
+<p align="center"><strong>Your AI-powered desktop companion is back!</strong></p>
+
+Welcome to the world of **BonziBUDDY**! He will explore the digital world with you as your very own friend and sidekick! Now powered by AI, Bonzi can have real conversations, tell jokes, and keep you company while you work.
 
 ## Features
-- [x] Draggable Bonzi
-- [x] You can quit the program
-- [ ] Not annoying
 
-## Use
-Simultaneously run `gatsby develop` and `yarn start` at the same time.
+### Core Features
+- **AI-Powered Chat** - Have real conversations with Bonzi powered by xAI's Grok
+- **Text-to-Speech** - Bonzi speaks to you with customizable voice settings
+- **Draggable Window** - Move Bonzi anywhere on your screen
+- **Always on Top** - Bonzi stays visible while you work
+- **Transparent Window** - Seamless desktop integration
+
+### Animations
+- **Idle Animations** - Bonzi comes alive with random idle movements
+- **Contextual Reactions** - Waves when greeting, thinks while processing, celebrates on success
+- **12+ Unique Animations** - Including Wave, Greet, Think, Pleased, Confused, Sad, and more
+
+### Modern UI
+- **Redesigned Settings** - Modern dark purple theme with card-based layout
+- **Easy Configuration** - Toggle voice, adjust speech rate, manage API keys
+- **Quick Links** - Configure your favorite websites for quick access
+
+### Platform Support
+- **macOS** - Full support with proper transparency, multi-desktop visibility
+- **Windows** - Compatible with Windows 10/11
+- **Linux** - Experimental support
+
+## Installation
+
+### Prerequisites
+- Node.js 18+
+- Yarn package manager
+- xAI API key (get one at [console.x.ai](https://console.x.ai))
+
+### Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/NYTEMODEONLY/BonziBuddy.git
+   cd BonziBuddy
+   ```
+
+2. **Install dependencies**
+   ```bash
+   yarn install
+   ```
+
+3. **Run in development mode**
+   ```bash
+   # Start Gatsby dev server and Electron together
+   yarn start:dev
+   ```
+
+   Or run them separately:
+   ```bash
+   # Terminal 1: Start Gatsby
+   yarn develop
+
+   # Terminal 2: Start Electron (after Gatsby is ready)
+   yarn start
+   ```
+
+4. **Configure AI**
+   - Right-click Bonzi → Options → AI Assistant
+   - Enter your xAI API key
+   - Click "Save Key"
+
+## Building for Production
+
+### macOS
+```bash
+yarn package:mac
+```
+This creates a `.dmg` installer in the `dist/` folder.
+
+### All Platforms
+```bash
+yarn build
+yarn bonzi
+```
+
+## Usage
+
+- **Right-click Bonzi** - Opens context menu with options
+- **Chat with Bonzi** - Select "Chat with Bonzi" from the menu or use the chat input
+- **Drag Bonzi** - Click and drag to move him around your screen
+- **Settings** - Access Options to configure voice, API key, and more
+- **Goodbye** - Select "Goodbye" to close BonziBuddy (he'll wave goodbye!)
+
+## Configuration
+
+### AI Settings
+| Setting | Description |
+|---------|-------------|
+| xAI API Key | Your API key from console.x.ai |
+| Voice Enabled | Toggle text-to-speech on/off |
+| Speech Rate | Adjust how fast Bonzi speaks (0.5x - 2.0x) |
+
+### Settings Location
+Settings are stored securely using electron-store:
+- **macOS**: `~/Library/Application Support/bonzibuddy/`
+- **Windows**: `%APPDATA%/bonzibuddy/`
+- **Linux**: `~/.config/bonzibuddy/`
+
+## Tech Stack
+
+- **Electron 33** - Desktop application framework
+- **React 18** - UI components
+- **Gatsby 5** - Static site generation
+- **xAI Grok API** - AI conversation backend
+- **ClippyJS** - Agent animations
+- **Web Speech API** - Text-to-speech
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `yarn develop` | Start Gatsby dev server |
+| `yarn start` | Start Electron in dev mode |
+| `yarn start:dev` | Start both Gatsby and Electron |
+| `yarn build` | Build Gatsby for production |
+| `yarn bonzi` | Run Electron in production mode |
+| `yarn package:mac` | Build macOS installer |
+
+## Project Structure
+
+```
+bonzibuddy/
+├── electron.js          # Main Electron process
+├── preload.js           # Secure IPC bridge
+├── gatsby-config.js     # Gatsby configuration
+├── gatsby-node.js       # Webpack customization
+├── electron-builder.json # Build configuration
+├── src/
+│   ├── pages/
+│   │   ├── bonzi/       # Main Bonzi component
+│   │   ├── home/        # Home menu
+│   │   └── settings/    # Settings page
+│   └── components/      # Shared components
+├── static/
+│   └── clippy.js/       # Agent assets
+└── build/               # App icons
+```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+MIT License - See LICENSE file for details
+
+## Credits
+
+- **Original BonziBuddy** - Copyright © 1995-2000 BONZI.COM Software
+- **ClippyJS** - [pi0/clippyjs](https://github.com/pi0/clippyjs)
+- **Original Electron Port** - [7coil](https://github.com/7coil)
 
 ---
-Copyright © 1995 - 2000 BONZI.COM Software  
-Copyright 2019 - 2020 7coil
+
+<p align="center">
+  <a href="https://nytemode.com"><strong>a nytemode project</strong></a>
+</p>
