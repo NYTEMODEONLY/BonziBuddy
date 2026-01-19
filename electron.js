@@ -77,6 +77,7 @@ function getStore() {
           defaults: {
             voiceEnabled: true,
             speechRate: 1.0,
+            useClassicVoice: true,
             apiKey: ''
           }
         });
@@ -104,6 +105,14 @@ Key personality traits:
 - Helpful and eager to please
 
 Keep your responses SHORT (1-3 sentences max). You're a chatty desktop buddy, not writing essays!`;
+
+// Entertainment prompts
+const JOKE_PROMPT = `Tell me a short, family-friendly joke. Just the joke itself, nothing else. Keep it brief and fun!`;
+const FACT_PROMPT = `Tell me a short, interesting fact. Just the fact itself, nothing else. Keep it brief and fascinating!`;
+const STORY_PROMPT = `Tell me a very short story (2-3 sentences max). Make it fun and whimsical!`;
+
+// Daisy Bell lyrics for singing
+const DAISY_BELL_LYRICS = `Daisy, Daisy, Give me your answer, do! I'm half crazy, All for the love of you! It won't be a stylish marriage, I can't afford a carriage, But you'll look sweet upon the seat Of a bicycle built for two!`;
 
 // xAI API configuration
 const XAI_API_URL = 'https://api.x.ai/v1/chat/completions';
@@ -370,6 +379,39 @@ const createWindow = async () => {
           },
           { type: 'separator' },
           {
+            label: 'Tell me a Joke',
+            click: () => {
+              resolved = true;
+              main.webContents.send('entertainment', { type: 'joke' });
+              resolve('joke');
+            }
+          },
+          {
+            label: 'Tell me a Fact',
+            click: () => {
+              resolved = true;
+              main.webContents.send('entertainment', { type: 'fact' });
+              resolve('fact');
+            }
+          },
+          {
+            label: 'Tell me a Story',
+            click: () => {
+              resolved = true;
+              main.webContents.send('entertainment', { type: 'story' });
+              resolve('story');
+            }
+          },
+          {
+            label: 'Sing a Song',
+            click: () => {
+              resolved = true;
+              main.webContents.send('entertainment', { type: 'sing' });
+              resolve('sing');
+            }
+          },
+          { type: 'separator' },
+          {
             label: 'Options',
             click: () => {
               resolved = true;
@@ -484,6 +526,67 @@ const createWindow = async () => {
     ipcMain.handle('ai:clearHistory', async () => {
       conversationHistory = [];
       return { success: true };
+    });
+
+    // Entertainment handlers
+    ipcMain.handle('entertainment:getContent', async (event, type) => {
+      // For singing, return the lyrics directly
+      if (type === 'sing') {
+        return { response: DAISY_BELL_LYRICS, type: 'sing' };
+      }
+
+      // For other types, use AI to generate content
+      if (!xaiApiKey) {
+        const hasKey = initXAIClient();
+        if (!hasKey) {
+          return { error: 'No API key configured. Please set your xAI API key in Settings.' };
+        }
+      }
+
+      let prompt;
+      switch (type) {
+        case 'joke':
+          prompt = JOKE_PROMPT;
+          break;
+        case 'fact':
+          prompt = FACT_PROMPT;
+          break;
+        case 'story':
+          prompt = STORY_PROMPT;
+          break;
+        default:
+          return { error: 'Unknown entertainment type' };
+      }
+
+      try {
+        const response = await fetch(XAI_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${xaiApiKey}`
+          },
+          body: JSON.stringify({
+            model: XAI_MODEL,
+            max_tokens: 256,
+            messages: [
+              { role: 'system', content: SYSTEM_PROMPT },
+              { role: 'user', content: prompt }
+            ]
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error?.message || `API request failed with status ${response.status}`);
+        }
+
+        const data = await response.json();
+        const content = data.choices[0].message.content;
+        return { response: content, type };
+      } catch (error) {
+        log('ERROR', `Entertainment ${type} error`, error);
+        return { error: error.message || 'Failed to get entertainment content' };
+      }
     });
 
     // Settings handlers

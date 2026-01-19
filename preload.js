@@ -28,6 +28,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getApiKey: () => ipcRenderer.invoke('ai:getApiKey'),
   clearHistory: () => ipcRenderer.invoke('ai:clearHistory'),
 
+  // Entertainment
+  getEntertainment: (type) => ipcRenderer.invoke('entertainment:getContent', type),
+  onEntertainment: (callback) => {
+    ipcRenderer.on('entertainment', (event, data) => callback(data));
+    return () => ipcRenderer.removeAllListeners('entertainment');
+  },
+
   // Speech
   speak: (text) => ipcRenderer.send('speak', text),
 

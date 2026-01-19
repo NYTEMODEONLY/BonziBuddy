@@ -18,6 +18,7 @@ class SettingsPage extends Component {
 			apiKey: '',
 			apiKeyDisplay: '',
 			voiceEnabled: true,
+			useClassicVoice: true,
 			speechRate: 1.0,
 			// UI state
 			saveMessage: '',
@@ -30,6 +31,7 @@ class SettingsPage extends Component {
 		this.handleApiKeyChange = this.handleApiKeyChange.bind(this);
 		this.handleSaveApiKey = this.handleSaveApiKey.bind(this);
 		this.handleVoiceToggle = this.handleVoiceToggle.bind(this);
+		this.handleClassicVoiceToggle = this.handleClassicVoiceToggle.bind(this);
 		this.handleSpeechRateChange = this.handleSpeechRateChange.bind(this);
 		this.handleClearHistory = this.handleClearHistory.bind(this);
 		this.handleSave = this.handleSave.bind(this);
@@ -39,9 +41,10 @@ class SettingsPage extends Component {
 	async componentDidMount() {
 		if (typeof window !== 'undefined' && window.electronAPI) {
 			// Load current settings
-			const [apiKeyDisplay, voiceEnabled, speechRate, userName] = await Promise.all([
+			const [apiKeyDisplay, voiceEnabled, useClassicVoice, speechRate, userName] = await Promise.all([
 				window.electronAPI.getApiKey(),
 				window.electronAPI.getSetting('voiceEnabled'),
+				window.electronAPI.getSetting('useClassicVoice'),
 				window.electronAPI.getSetting('speechRate'),
 				window.electronAPI.getSetting('userName')
 			]);
@@ -49,6 +52,7 @@ class SettingsPage extends Component {
 			this.setState({
 				apiKeyDisplay: apiKeyDisplay || '',
 				voiceEnabled: voiceEnabled !== false,
+				useClassicVoice: useClassicVoice !== false,
 				speechRate: speechRate || 1.0,
 				userName: userName || ''
 			});
@@ -94,6 +98,14 @@ class SettingsPage extends Component {
 		}
 	}
 
+	async handleClassicVoiceToggle() {
+		const newValue = !this.state.useClassicVoice;
+		this.setState({ useClassicVoice: newValue, hasChanges: true });
+		if (typeof window !== 'undefined' && window.electronAPI) {
+			await window.electronAPI.setSetting('useClassicVoice', newValue);
+		}
+	}
+
 	async handleSpeechRateChange(e) {
 		const newRate = parseFloat(e.target.value);
 		this.setState({ speechRate: newRate, hasChanges: true });
@@ -134,7 +146,7 @@ class SettingsPage extends Component {
 	}
 
 	render() {
-		const { menu, userName, apiKey, apiKeyDisplay, voiceEnabled, speechRate, saveMessage, saveMessageType, hasChanges, isSaving } = this.state;
+		const { menu, userName, apiKey, apiKeyDisplay, voiceEnabled, useClassicVoice, speechRate, saveMessage, saveMessageType, hasChanges, isSaving } = this.state;
 
 		return (
 			<div className={styles.grid}>
@@ -260,6 +272,18 @@ class SettingsPage extends Component {
 								<div className={styles.toggleSwitch}></div>
 								<span className={styles.toggleLabel}>Enable voice output</span>
 							</div>
+
+							<div
+								className={CombineStyles(styles.toggle, useClassicVoice && styles.toggleActive)}
+								onClick={this.handleClassicVoiceToggle}
+								style={{ marginTop: '12px' }}
+							>
+								<div className={styles.toggleSwitch}></div>
+								<span className={styles.toggleLabel}>Use classic BonziBuddy voice (SAPI4)</span>
+							</div>
+							<p style={{ fontSize: '12px', color: 'rgba(196, 181, 253, 0.7)', marginTop: '8px', marginBottom: '16px' }}>
+								The original voice from the 90s! Powered by tetyys.com
+							</p>
 
 							<div className={styles.sliderGroup}>
 								<div className={styles.sliderLabel}>

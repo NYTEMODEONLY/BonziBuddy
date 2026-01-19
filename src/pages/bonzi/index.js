@@ -13,6 +13,10 @@ const THINKING_ANIMATIONS = ['Think', 'Searching', 'LookUp']
 const SUCCESS_ANIMATIONS = ['Pleased', 'Congratulate', 'Wave']
 const ERROR_ANIMATIONS = ['Confused', 'Sad', 'Uncertain']
 const ATTENTION_ANIMATIONS = ['GetAttention', 'GetAttention2', 'Wave']
+const SINGING_ANIMATIONS = ['Pleased', 'Congratulate', 'Wave', 'GetAttention']
+const JOKE_ANIMATIONS = ['Pleased', 'Congratulate', 'GetAttention']
+const FACT_ANIMATIONS = ['Think', 'Searching', 'Pleased']
+const STORY_ANIMATIONS = ['GetAttention', 'Wave', 'Pleased']
 
 class BonziBuddy extends Component {
   constructor(props) {
@@ -26,6 +30,7 @@ class BonziBuddy extends Component {
     this.closeChatInput = this.closeChatInput.bind(this)
     this.handleClickOutside = this.handleClickOutside.bind(this)
     this.playRandomIdle = this.playRandomIdle.bind(this)
+    this.handleEntertainment = this.handleEntertainment.bind(this)
     this.agent = null
     this.animationId = null
     this.idleTimerId = null
@@ -132,27 +137,59 @@ class BonziBuddy extends Component {
     // Show speech bubble via clippy
     this.agent.speak(text)
 
-    // Use Web Speech API for voice output
-    if (typeof window !== 'undefined' && window.electronAPI && 'speechSynthesis' in window) {
+    // Use voice output
+    if (typeof window !== 'undefined' && window.electronAPI) {
       window.electronAPI.getSetting('voiceEnabled').then(voiceEnabled => {
         if (voiceEnabled !== false) {
-          window.electronAPI.getSetting('speechRate').then(rate => {
-            const utterance = new SpeechSynthesisUtterance(text)
-            utterance.rate = rate || 1.0
-            // Try to find a suitable voice
-            const voices = window.speechSynthesis.getVoices()
-            const preferredVoice = voices.find(v =>
-              v.name.includes('Alex') ||
-              v.name.includes('Daniel') ||
-              v.name.includes('Fred')
-            )
-            if (preferredVoice) {
-              utterance.voice = preferredVoice
+          window.electronAPI.getSetting('useClassicVoice').then(useClassicVoice => {
+            if (useClassicVoice !== false) {
+              // Use classic SAPI4 BonziBuddy voice via TETYYS API
+              this.playClassicVoice(text)
+            } else if ('speechSynthesis' in window) {
+              // Use modern Web Speech API
+              window.electronAPI.getSetting('speechRate').then(rate => {
+                const utterance = new SpeechSynthesisUtterance(text)
+                utterance.rate = rate || 1.0
+                // Try to find a suitable voice
+                const voices = window.speechSynthesis.getVoices()
+                const preferredVoice = voices.find(v =>
+                  v.name.includes('Alex') ||
+                  v.name.includes('Daniel') ||
+                  v.name.includes('Fred')
+                )
+                if (preferredVoice) {
+                  utterance.voice = preferredVoice
+                }
+                window.speechSynthesis.speak(utterance)
+              }).catch(err => console.error('Failed to get speechRate:', err))
             }
-            window.speechSynthesis.speak(utterance)
-          }).catch(err => console.error('Failed to get speechRate:', err))
+          }).catch(err => console.error('Failed to get useClassicVoice:', err))
         }
       }).catch(err => console.error('Failed to get voiceEnabled:', err))
+    }
+  }
+
+  // Play audio using the classic SAPI4 BonziBuddy voice
+  async playClassicVoice(text) {
+    try {
+      // TETYYS SAPI4 API - Adult Male #2 with BonziBuddy settings
+      const voice = encodeURIComponent('Adult Male #2, American English (TruVoice)')
+      const encodedText = encodeURIComponent(text)
+      const pitch = 140
+      const speed = 157
+      const url = `https://tetyys.com/SAPI4/SAPI4?text=${encodedText}&voice=${voice}&pitch=${pitch}&speed=${speed}`
+
+      const audio = new Audio(url)
+      audio.play().catch(err => {
+        console.error('Failed to play classic voice:', err)
+        // Fallback to Web Speech API if classic voice fails
+        if ('speechSynthesis' in window) {
+          const utterance = new SpeechSynthesisUtterance(text)
+          window.speechSynthesis.speak(utterance)
+        }
+      })
+    } catch (error) {
+      console.error('Classic voice error:', error)
     }
   }
 
@@ -220,6 +257,58 @@ class BonziBuddy extends Component {
     }
   }
 
+  async handleEntertainment(data) {
+    if (!window.electronAPI || this.state.isThinking) return
+
+    const { type } = data
+    this.setState({ isThinking: true })
+
+    // Stop idle animations during entertainment
+    this.stopIdleTimer()
+
+    // Play thinking animation while fetching content
+    if (this.agent) {
+      this.playRandomAnimation(THINKING_ANIMATIONS)
+    }
+
+    try {
+      const result = await window.electronAPI.getEntertainment(type)
+
+      if (result.error) {
+        this.speak(result.error, ERROR_ANIMATIONS)
+      } else if (result.response) {
+        // Choose appropriate animation based on type
+        let animations
+        switch (type) {
+          case 'sing':
+            animations = SINGING_ANIMATIONS
+            break
+          case 'joke':
+            animations = JOKE_ANIMATIONS
+            break
+          case 'fact':
+            animations = FACT_ANIMATIONS
+            break
+          case 'story':
+            animations = STORY_ANIMATIONS
+            break
+          default:
+            animations = SUCCESS_ANIMATIONS
+        }
+        this.speak(result.response, animations)
+      }
+    } catch (error) {
+      console.error('Entertainment error:', error)
+      this.speak("Oops! Something went wrong. Try again later!", ERROR_ANIMATIONS)
+    }
+
+    this.setState({ isThinking: false })
+    // Restart idle timer after a delay
+    setTimeout(() => {
+      this.startIdleTimer()
+    }, 5000)
+  }
+
   componentDidMount() {
     // Add global mouseup listener to handle drag release outside window
     if (typeof window !== 'undefined') {
@@ -239,6 +328,11 @@ class BonziBuddy extends Component {
         } else {
           window.electronAPI.closeProgram(0)
         }
+      })
+
+      // Listen for entertainment commands
+      window.electronAPI.onEntertainment((data) => {
+        this.handleEntertainment(data)
       })
 
       // Listen for chat input open command
