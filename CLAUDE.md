@@ -31,7 +31,7 @@ This is an Electron + Gatsby hybrid application. Gatsby generates the UI as stat
 - Creates transparent, frameless BrowserWindow for Bonzi character
 - Creates standard windows for Settings and Home menus
 - Handles all IPC communication via `ipcMain`
-- Manages xAI API calls for AI chat (direct fetch to `https://api.x.ai/v1/chat/completions`)
+- Manages AI provider system (xAI, Anthropic, OpenAI, Custom/Local)
 - Persists settings via electron-store (encrypted)
 - Logs to `~/Library/Application Support/bonzibuddy/bonzibuddy-error.log`
 
@@ -58,15 +58,53 @@ window.electronAPI.onCloseProgram(cb)     // listen for main→renderer events
 ### Gatsby SSR Considerations
 
 Browser-only modules must be excluded from SSR builds in `gatsby-node.js`:
-- clippyjs, electron-store, node-fetch are null-loaded during `build-html`/`develop-html`
+- clippyjs, electron-store, node-fetch, encoding, iconv-lite, @anthropic-ai are null-loaded during `build-html`/`develop-html`
 - CSS modules use `import * as styles from './file.module.scss'` syntax (Gatsby 5)
+- Webpack 5 polyfill fallbacks are disabled for fs, path, os, buffer, stream, crypto
 
 ### Animation System
 
 Bonzi uses ClippyJS with animations defined in `static/clippy.js/agents/Bonzi/agent.js`. The React component in `src/pages/bonzi/index.js` manages:
 - Idle animation cycling (15-30 second intervals)
-- Contextual animations (greeting, thinking, success, error)
-- Animation arrays: `IDLE_ANIMATIONS`, `GREETING_ANIMATIONS`, `THINKING_ANIMATIONS`, `SINGING_ANIMATIONS`, `JOKE_ANIMATIONS`, `FACT_ANIMATIONS`, `STORY_ANIMATIONS`
+- Contextual animations (greeting, thinking, success, error, attention)
+- Animation arrays: `IDLE_ANIMATIONS`, `GREETING_ANIMATIONS`, `THINKING_ANIMATIONS`, `SUCCESS_ANIMATIONS`, `ERROR_ANIMATIONS`, `ATTENTION_ANIMATIONS`, `SINGING_ANIMATIONS`, `JOKE_ANIMATIONS`, `FACT_ANIMATIONS`, `STORY_ANIMATIONS`
+
+### Multi-Provider AI System
+
+BonziBuddy supports multiple AI providers via a pluggable provider system in `providers/`:
+
+**Available Providers**:
+- `xai` - xAI (Grok): Default provider, OpenAI-compatible API
+- `anthropic` - Anthropic (Claude): Uses x-api-key header and different message format
+- `openai` - OpenAI (ChatGPT): Standard OpenAI chat completions
+- `custom` - Custom/Local: OpenAI-compatible endpoints (Ollama, LM Studio, etc.)
+
+**Provider Architecture** (`providers/`):
+- `base-provider.js` - Abstract base class with common interface
+- `xai-provider.js`, `anthropic-provider.js`, `openai-provider.js`, `custom-provider.js` - Provider implementations
+- `index.js` - Provider factory and registry
+
+**Key IPC Handlers**:
+- `ai:getProviders` - List available providers with their models
+- `ai:getConfig` - Get current provider config (API keys masked)
+- `ai:setProvider` - Switch active provider
+- `ai:setProviderApiKey` - Set API key for a provider
+- `ai:setProviderModel` - Set model for a provider
+- `ai:setProviderBaseUrl` - Set base URL (custom provider)
+- `ai:testConnection` - Test provider connection
+
+**Storage Structure**:
+```javascript
+{
+  aiProvider: 'xai',  // Current active provider
+  providers: {
+    xai: { apiKey: '', model: 'grok-3-mini', baseUrl: 'https://api.x.ai/v1' },
+    anthropic: { apiKey: '', model: 'claude-sonnet-4-20250514', baseUrl: 'https://api.anthropic.com' },
+    openai: { apiKey: '', model: 'gpt-4o-mini', baseUrl: 'https://api.openai.com/v1' },
+    custom: { apiKey: '', model: 'llama2', baseUrl: 'http://localhost:11434/v1' }
+  }
+}
+```
 
 ### Entertainment System
 
@@ -75,7 +113,7 @@ Context menu entertainment options (Joke, Fact, Story, Sing) are handled via:
 2. Renderer calls `window.electronAPI.getEntertainment(type)`
 3. Main process handler `entertainment:getContent`:
    - `sing` → Returns hardcoded Daisy Bell lyrics (no API needed)
-   - `joke/fact/story` → Calls xAI API with specialized prompts
+   - `joke/fact/story` → Uses current AI provider with specialized prompts
 
 ### Classic Voice (SAPI4)
 
@@ -95,8 +133,11 @@ When chat opens, the window expands to fit the input:
 
 ## Key Configuration
 
-- **xAI Model**: `grok-3-mini` (defined in electron.js)
+- **Default AI Provider**: xAI with `grok-3-mini` model
+- **Supported Providers**: xAI (Grok), Anthropic (Claude), OpenAI (ChatGPT), Custom/Local
 - **Dev server**: Gatsby runs on `localhost:8000`
-- **Window size**: Bonzi frame is 200x160, expands to 360x230 for chat
-- **Settings stored**: `voiceEnabled`, `useClassicVoice`, `speechRate`, `apiKey`, `userName`
+- **Window size**: Bonzi frame is 200x160, expands by 160x70 for chat
+- **Settings stored**: `voiceEnabled`, `useClassicVoice`, `speechRate`, `aiProvider`, `providers` (encrypted via electron-store)
 - **Classic voice API**: TETYYS SAPI4 at `tetyys.com/SAPI4/SAPI4`
+- **Conversation history**: Limited to 20 messages (MAX_HISTORY constant)
+- **Log file**: `~/Library/Application Support/bonzibuddy/bonzibuddy-error.log`

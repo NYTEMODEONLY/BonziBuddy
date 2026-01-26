@@ -28,6 +28,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getApiKey: () => ipcRenderer.invoke('ai:getApiKey'),
   clearHistory: () => ipcRenderer.invoke('ai:clearHistory'),
 
+  // Provider Management
+  getProviders: () => ipcRenderer.invoke('ai:getProviders'),
+  getAIConfig: () => ipcRenderer.invoke('ai:getConfig'),
+  setProvider: (name) => ipcRenderer.invoke('ai:setProvider', name),
+  setProviderApiKey: (name, key) => ipcRenderer.invoke('ai:setProviderApiKey', name, key),
+  setProviderModel: (name, model) => ipcRenderer.invoke('ai:setProviderModel', name, model),
+  setProviderBaseUrl: (name, url) => ipcRenderer.invoke('ai:setProviderBaseUrl', name, url),
+  testConnection: (name) => ipcRenderer.invoke('ai:testConnection', name),
+
   // Entertainment
   getEntertainment: (type) => ipcRenderer.invoke('entertainment:getContent', type),
   onEntertainment: (callback) => {

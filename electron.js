@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, Menu, shell } = require("electron");
 const electron = require("electron");
 const path = require("path");
 const fs = require("fs");
+const { createProvider, getAvailableProviders, getAllDefaultConfigs } = require("./providers");
 
 // ============================================
 // ERROR LOGGING SETUP
@@ -78,16 +79,46 @@ function getStore() {
             voiceEnabled: true,
             speechRate: 1.0,
             useClassicVoice: true,
-            apiKey: ''
+            // Legacy key (for backwards compatibility)
+            apiKey: '',
+            // New provider system
+            configVersion: 1,
+            aiProvider: 'xai',
+            providers: getAllDefaultConfigs()
           }
         });
         log('INFO', 'Store initialized successfully');
+        // Run migration if needed
+        migrateConfig(store);
       } catch (error) {
         log('ERROR', 'Failed to initialize store', error);
       }
     }
   }
   return store;
+}
+
+// Migrate old config to new provider format
+function migrateConfig(s) {
+  try {
+    const configVersion = s.get('configVersion');
+    if (!configVersion) {
+      // Check if there's an old-style apiKey that needs migration
+      const oldApiKey = s.get('apiKey');
+      if (oldApiKey && oldApiKey.length > 0) {
+        // Migrate to new provider structure
+        const providers = s.get('providers') || getAllDefaultConfigs();
+        providers.xai.apiKey = oldApiKey;
+        s.set('providers', providers);
+        s.set('aiProvider', 'xai');
+        log('INFO', 'Migrated legacy API key to new provider system');
+      }
+      s.set('configVersion', 1);
+      log('INFO', 'Config migration complete');
+    }
+  } catch (error) {
+    log('ERROR', 'Config migration failed', error);
+  }
 }
 
 // AI conversation history
@@ -114,12 +145,8 @@ const STORY_PROMPT = `Tell me a very short story (2-3 sentences max). Make it fu
 // Daisy Bell lyrics for singing
 const DAISY_BELL_LYRICS = `Daisy, Daisy, Give me your answer, do! I'm half crazy, All for the love of you! It won't be a stylish marriage, I can't afford a carriage, But you'll look sweet upon the seat Of a bicycle built for two!`;
 
-// xAI API configuration
-const XAI_API_URL = 'https://api.x.ai/v1/chat/completions';
-const XAI_MODEL = 'grok-3-mini';
-
 let main, home, settings;
-let xaiApiKey = null;
+let currentProvider = null;
 
 // Use electron-serve for production, dev server for development
 const isDev = process.env.NODE_ENV === 'development';
@@ -144,18 +171,31 @@ const getURL = (page) => {
   return `app://-/${page}`;
 };
 
-// Initialize xAI API key if it exists
-const initXAIClient = () => {
+// Initialize the current AI provider
+const initCurrentProvider = () => {
   const s = getStore();
   if (!s) return false;
 
-  const apiKey = s.get('apiKey');
-  if (apiKey) {
-    xaiApiKey = apiKey;
-    log('INFO', 'xAI API key loaded');
+  const providerName = s.get('aiProvider') || 'xai';
+  const providers = s.get('providers') || getAllDefaultConfigs();
+  const providerConfig = providers[providerName] || {};
+
+  try {
+    currentProvider = createProvider(providerName, providerConfig);
+    log('INFO', `AI provider initialized: ${currentProvider.getProviderName()}`);
     return true;
+  } catch (error) {
+    log('ERROR', 'Failed to initialize AI provider', error);
+    return false;
   }
-  return false;
+};
+
+// Get current provider, initializing if needed
+const getCurrentProvider = () => {
+  if (!currentProvider) {
+    initCurrentProvider();
+  }
+  return currentProvider;
 };
 
 const createSettingsMenu = () => {
@@ -244,8 +284,8 @@ const createWindow = async () => {
   log('INFO', 'Creating main window');
 
   try {
-    // Initialize xAI client (optional, don't fail if it doesn't work)
-    initXAIClient();
+    // Initialize AI provider (optional, don't fail if it doesn't work)
+    initCurrentProvider();
 
     main = new BrowserWindow({
       width: 200,
@@ -448,11 +488,9 @@ const createWindow = async () => {
 
     // AI handlers
     ipcMain.handle('ai:sendMessage', async (event, message) => {
-      if (!xaiApiKey) {
-        const hasKey = initXAIClient();
-        if (!hasKey) {
-          return { error: 'No API key configured. Please set your xAI API key in Settings.' };
-        }
+      const provider = getCurrentProvider();
+      if (!provider) {
+        return { error: 'AI provider not initialized. Please configure your AI provider in Settings.' };
       }
 
       try {
@@ -465,50 +503,46 @@ const createWindow = async () => {
           conversationHistory = conversationHistory.slice(-MAX_HISTORY);
         }
 
-        // Build messages array with system prompt
-        const messages = [
-          { role: 'system', content: SYSTEM_PROMPT },
-          ...conversationHistory
-        ];
-
-        const response = await fetch(XAI_API_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${xaiApiKey}`
-          },
-          body: JSON.stringify({
-            model: XAI_MODEL,
-            max_tokens: 256,
-            messages: messages
-          })
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error?.message || `API request failed with status ${response.status}`);
+        // Build personalized system prompt with user's name
+        const s = getStore();
+        const userName = s ? s.get('userName') : null;
+        let systemPrompt = SYSTEM_PROMPT;
+        if (userName) {
+          systemPrompt += `\n\nIMPORTANT: The user's name is "${userName}". Address them by name occasionally to be friendly and personal.`;
         }
 
-        const data = await response.json();
-        const assistantMessage = data.choices[0].message.content;
+        const result = await provider.sendMessage(conversationHistory, systemPrompt, 256);
+
+        if (result.error) {
+          // Remove the user message if there was an error
+          conversationHistory.pop();
+          return result;
+        }
 
         conversationHistory.push({
           role: 'assistant',
-          content: assistantMessage
+          content: result.response
         });
 
-        return { response: assistantMessage };
+        return result;
       } catch (error) {
         log('ERROR', 'AI sendMessage error', error);
-        return { error: error.message || 'Failed to get response from Grok' };
+        // Remove the user message if there was an error
+        conversationHistory.pop();
+        return { error: error.message || 'Failed to get response from AI' };
       }
     });
 
+    // Legacy API key handlers (backwards compatible, maps to current provider)
     ipcMain.handle('ai:setApiKey', async (event, apiKey) => {
       const s = getStore();
       if (s) {
-        s.set('apiKey', apiKey);
-        xaiApiKey = apiKey || null;
+        const providerName = s.get('aiProvider') || 'xai';
+        const providers = s.get('providers') || getAllDefaultConfigs();
+        providers[providerName].apiKey = apiKey;
+        s.set('providers', providers);
+        // Reinitialize provider with new key
+        initCurrentProvider();
       }
       return { success: true };
     });
@@ -516,7 +550,9 @@ const createWindow = async () => {
     ipcMain.handle('ai:getApiKey', async () => {
       const s = getStore();
       if (!s) return '';
-      const key = s.get('apiKey');
+      const providerName = s.get('aiProvider') || 'xai';
+      const providers = s.get('providers') || {};
+      const key = providers[providerName]?.apiKey || '';
       if (key) {
         return key.substring(0, 8) + '...' + key.substring(key.length - 4);
       }
@@ -528,6 +564,117 @@ const createWindow = async () => {
       return { success: true };
     });
 
+    // Provider management handlers
+    ipcMain.handle('ai:getProviders', async () => {
+      return getAvailableProviders();
+    });
+
+    ipcMain.handle('ai:getConfig', async () => {
+      const s = getStore();
+      if (!s) return null;
+
+      const aiProvider = s.get('aiProvider') || 'xai';
+      const providers = s.get('providers') || getAllDefaultConfigs();
+
+      // Mask API keys for security
+      const maskedProviders = {};
+      for (const [name, config] of Object.entries(providers)) {
+        maskedProviders[name] = {
+          ...config,
+          apiKey: config.apiKey ?
+            (config.apiKey.substring(0, 8) + '...' + config.apiKey.substring(config.apiKey.length - 4)) :
+            ''
+        };
+      }
+
+      return {
+        aiProvider,
+        providers: maskedProviders
+      };
+    });
+
+    ipcMain.handle('ai:setProvider', async (event, providerName) => {
+      const s = getStore();
+      if (s && ['xai', 'anthropic', 'openai', 'custom'].includes(providerName)) {
+        s.set('aiProvider', providerName);
+        initCurrentProvider();
+        log('INFO', `Switched AI provider to: ${providerName}`);
+        return { success: true };
+      }
+      return { success: false, error: 'Invalid provider' };
+    });
+
+    ipcMain.handle('ai:setProviderApiKey', async (event, providerName, apiKey) => {
+      const s = getStore();
+      if (s) {
+        const providers = s.get('providers') || getAllDefaultConfigs();
+        if (providers[providerName]) {
+          providers[providerName].apiKey = apiKey;
+          s.set('providers', providers);
+          // Reinitialize if this is the current provider
+          if (s.get('aiProvider') === providerName) {
+            initCurrentProvider();
+          }
+          return { success: true };
+        }
+      }
+      return { success: false, error: 'Invalid provider' };
+    });
+
+    ipcMain.handle('ai:setProviderModel', async (event, providerName, model) => {
+      const s = getStore();
+      if (s) {
+        const providers = s.get('providers') || getAllDefaultConfigs();
+        if (providers[providerName]) {
+          providers[providerName].model = model;
+          s.set('providers', providers);
+          // Reinitialize if this is the current provider
+          if (s.get('aiProvider') === providerName) {
+            initCurrentProvider();
+          }
+          return { success: true };
+        }
+      }
+      return { success: false, error: 'Invalid provider' };
+    });
+
+    ipcMain.handle('ai:setProviderBaseUrl', async (event, providerName, baseUrl) => {
+      const s = getStore();
+      if (s) {
+        const providers = s.get('providers') || getAllDefaultConfigs();
+        if (providers[providerName]) {
+          providers[providerName].baseUrl = baseUrl;
+          s.set('providers', providers);
+          // Reinitialize if this is the current provider
+          if (s.get('aiProvider') === providerName) {
+            initCurrentProvider();
+          }
+          return { success: true };
+        }
+      }
+      return { success: false, error: 'Invalid provider' };
+    });
+
+    ipcMain.handle('ai:testConnection', async (event, providerName) => {
+      const s = getStore();
+      if (!s) return { success: false, error: 'Store not initialized' };
+
+      const providers = s.get('providers') || getAllDefaultConfigs();
+      const providerConfig = providers[providerName];
+
+      if (!providerConfig) {
+        return { success: false, error: 'Invalid provider' };
+      }
+
+      try {
+        const testProvider = createProvider(providerName, providerConfig);
+        const result = await testProvider.testConnection();
+        return result;
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    });
+
     // Entertainment handlers
     ipcMain.handle('entertainment:getContent', async (event, type) => {
       // For singing, return the lyrics directly
@@ -536,11 +683,9 @@ const createWindow = async () => {
       }
 
       // For other types, use AI to generate content
-      if (!xaiApiKey) {
-        const hasKey = initXAIClient();
-        if (!hasKey) {
-          return { error: 'No API key configured. Please set your xAI API key in Settings.' };
-        }
+      const provider = getCurrentProvider();
+      if (!provider) {
+        return { error: 'AI provider not initialized. Please configure your AI provider in Settings.' };
       }
 
       let prompt;
@@ -559,30 +704,17 @@ const createWindow = async () => {
       }
 
       try {
-        const response = await fetch(XAI_API_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${xaiApiKey}`
-          },
-          body: JSON.stringify({
-            model: XAI_MODEL,
-            max_tokens: 256,
-            messages: [
-              { role: 'system', content: SYSTEM_PROMPT },
-              { role: 'user', content: prompt }
-            ]
-          })
-        });
+        const result = await provider.sendMessage(
+          [{ role: 'user', content: prompt }],
+          SYSTEM_PROMPT,
+          256
+        );
 
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error?.message || `API request failed with status ${response.status}`);
+        if (result.error) {
+          return { error: result.error };
         }
 
-        const data = await response.json();
-        const content = data.choices[0].message.content;
-        return { response: content, type };
+        return { response: result.response, type };
       } catch (error) {
         log('ERROR', `Entertainment ${type} error`, error);
         return { error: error.message || 'Failed to get entertainment content' };

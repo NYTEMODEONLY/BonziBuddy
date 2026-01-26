@@ -1,4 +1,4 @@
-# BonziBuddy 5.0
+# BonziBuddy 5.0.1
 
 <p align="center">
   <img src=".github/bbabilities2.gif">
@@ -11,7 +11,7 @@ Welcome to the world of **BonziBUDDY**! He will explore the digital world with y
 ## Features
 
 ### Core Features
-- **AI-Powered Chat** - Have real conversations with Bonzi powered by xAI's Grok
+- **Multi-Provider AI Support** - Choose your preferred AI: xAI (Grok), Anthropic (Claude), OpenAI (ChatGPT), or custom/local models
 - **Text-to-Speech** - Bonzi speaks to you with customizable voice settings
 - **Draggable Window** - Move Bonzi anywhere on your screen
 - **Always on Top** - Bonzi stays visible while you work
@@ -48,7 +48,11 @@ Welcome to the world of **BonziBUDDY**! He will explore the digital world with y
 ### Prerequisites
 - Node.js 18+
 - Yarn package manager
-- xAI API key (get one at [console.x.ai](https://console.x.ai))
+- API key from one of the supported providers:
+  - [xAI (Grok)](https://console.x.ai)
+  - [Anthropic (Claude)](https://console.anthropic.com)
+  - [OpenAI (ChatGPT)](https://platform.openai.com/api-keys)
+  - Or a local model (Ollama, LM Studio, etc.)
 
 ### Setup
 
@@ -80,8 +84,9 @@ Welcome to the world of **BonziBUDDY**! He will explore the digital world with y
 
 4. **Configure AI**
    - Right-click Bonzi → Options → AI Assistant
-   - Enter your xAI API key
-   - Click "Save Key"
+   - Select your preferred AI provider (xAI, Anthropic, OpenAI, or Custom)
+   - Enter your API key and click "Save Key"
+   - Use "Test Connection" to verify your setup
 
 ## Building for Production
 
@@ -110,10 +115,20 @@ yarn bonzi
 ### AI Settings
 | Setting | Description |
 |---------|-------------|
-| xAI API Key | Your API key from console.x.ai |
+| AI Provider | Choose between xAI, Anthropic, OpenAI, or Custom/Local |
+| API Key | Your API key for the selected provider |
+| Model | Select which model to use (e.g., grok-3-mini, claude-sonnet-4, gpt-4o-mini) |
 | Voice Enabled | Toggle text-to-speech on/off |
 | Classic Voice | Use the original SAPI4 BonziBuddy voice |
 | Speech Rate | Adjust how fast Bonzi speaks (0.5x - 2.0x) |
+
+### Supported AI Providers
+| Provider | Default Model | API Key Source |
+|----------|---------------|----------------|
+| xAI (Grok) | grok-3-mini | [console.x.ai](https://console.x.ai) |
+| Anthropic (Claude) | claude-sonnet-4 | [console.anthropic.com](https://console.anthropic.com) |
+| OpenAI (ChatGPT) | gpt-4o-mini | [platform.openai.com](https://platform.openai.com/api-keys) |
+| Custom/Local | User-specified | Optional (for local models like Ollama) |
 
 ### Settings Location
 Settings are stored securely using electron-store:
@@ -126,7 +141,7 @@ Settings are stored securely using electron-store:
 - **Electron 33** - Desktop application framework
 - **React 18** - UI components
 - **Gatsby 5** - Static site generation
-- **xAI Grok API** - AI conversation backend
+- **Multi-Provider AI** - xAI, Anthropic, OpenAI, or custom endpoints
 - **ClippyJS** - Agent animations
 - **Web Speech API** - Text-to-speech
 
@@ -147,6 +162,12 @@ Settings are stored securely using electron-store:
 bonzibuddy/
 ├── electron.js          # Main Electron process
 ├── preload.js           # Secure IPC bridge
+├── providers/           # AI provider implementations
+│   ├── base-provider.js
+│   ├── xai-provider.js
+│   ├── anthropic-provider.js
+│   ├── openai-provider.js
+│   └── custom-provider.js
 ├── gatsby-config.js     # Gatsby configuration
 ├── gatsby-node.js       # Webpack customization
 ├── electron-builder.json # Build configuration
@@ -171,6 +192,7 @@ MIT License - See LICENSE file for details
 
 ## Credits
 
+- **2026 Rebuild** - [nytemode](https://nytemode.com)
 - **Original BonziBuddy** - Copyright © 1995-2000 BONZI.COM Software
 - **ClippyJS** - [pi0/clippyjs](https://github.com/pi0/clippyjs)
 - **Original Electron Port** - [7coil](https://github.com/7coil)

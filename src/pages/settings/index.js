@@ -7,6 +7,14 @@ import microsoftAgent from './img/agent.png';
 import CombineStyles from '../../helpers/CombineStyles.js';
 import HyperlinkConfigurator from '../../components/HyperlinkConfigurator/index.js';
 
+// Provider display info
+const PROVIDER_INFO = {
+	xai: { name: 'xAI (Grok)', icon: 'X', color: '#1DA1F2', apiUrl: 'https://console.x.ai' },
+	anthropic: { name: 'Anthropic', icon: 'A', color: '#D4A574', apiUrl: 'https://console.anthropic.com' },
+	openai: { name: 'OpenAI', icon: 'O', color: '#10a37f', apiUrl: 'https://platform.openai.com/api-keys' },
+	custom: { name: 'Custom/Local', icon: 'C', color: '#6366f1', apiUrl: null }
+};
+
 class SettingsPage extends Component {
 	constructor(props) {
 		super(props);
@@ -15,21 +23,32 @@ class SettingsPage extends Component {
 			menu: 'salutation',
 			// Settings values
 			userName: '',
-			apiKey: '',
-			apiKeyDisplay: '',
 			voiceEnabled: true,
 			useClassicVoice: true,
 			speechRate: 1.0,
+			// Provider settings
+			aiProvider: 'xai',
+			providers: {},
+			availableProviders: [],
+			providerApiKey: '',
+			providerModel: '',
+			providerBaseUrl: '',
 			// UI state
 			saveMessage: '',
 			saveMessageType: 'success',
 			hasChanges: false,
-			isSaving: false
+			isSaving: false,
+			isTesting: false
 		}
 		this.setMenu = this.setMenu.bind(this);
 		this.handleNameChange = this.handleNameChange.bind(this);
-		this.handleApiKeyChange = this.handleApiKeyChange.bind(this);
-		this.handleSaveApiKey = this.handleSaveApiKey.bind(this);
+		this.handleProviderSelect = this.handleProviderSelect.bind(this);
+		this.handleProviderApiKeyChange = this.handleProviderApiKeyChange.bind(this);
+		this.handleSaveProviderApiKey = this.handleSaveProviderApiKey.bind(this);
+		this.handleProviderModelChange = this.handleProviderModelChange.bind(this);
+		this.handleProviderBaseUrlChange = this.handleProviderBaseUrlChange.bind(this);
+		this.handleSaveProviderBaseUrl = this.handleSaveProviderBaseUrl.bind(this);
+		this.handleTestConnection = this.handleTestConnection.bind(this);
 		this.handleVoiceToggle = this.handleVoiceToggle.bind(this);
 		this.handleClassicVoiceToggle = this.handleClassicVoiceToggle.bind(this);
 		this.handleSpeechRateChange = this.handleSpeechRateChange.bind(this);
@@ -41,20 +60,23 @@ class SettingsPage extends Component {
 	async componentDidMount() {
 		if (typeof window !== 'undefined' && window.electronAPI) {
 			// Load current settings
-			const [apiKeyDisplay, voiceEnabled, useClassicVoice, speechRate, userName] = await Promise.all([
-				window.electronAPI.getApiKey(),
+			const [voiceEnabled, useClassicVoice, speechRate, userName, availableProviders, aiConfig] = await Promise.all([
 				window.electronAPI.getSetting('voiceEnabled'),
 				window.electronAPI.getSetting('useClassicVoice'),
 				window.electronAPI.getSetting('speechRate'),
-				window.electronAPI.getSetting('userName')
+				window.electronAPI.getSetting('userName'),
+				window.electronAPI.getProviders(),
+				window.electronAPI.getAIConfig()
 			]);
 
 			this.setState({
-				apiKeyDisplay: apiKeyDisplay || '',
 				voiceEnabled: voiceEnabled !== false,
 				useClassicVoice: useClassicVoice !== false,
 				speechRate: speechRate || 1.0,
-				userName: userName || ''
+				userName: userName || '',
+				availableProviders: availableProviders || [],
+				aiProvider: aiConfig?.aiProvider || 'xai',
+				providers: aiConfig?.providers || {}
 			});
 		}
 	}
@@ -70,23 +92,89 @@ class SettingsPage extends Component {
 		this.setState({ userName: e.target.value, hasChanges: true });
 	}
 
-	handleApiKeyChange(e) {
-		this.setState({ apiKey: e.target.value });
+	async handleProviderSelect(providerName) {
+		if (typeof window !== 'undefined' && window.electronAPI) {
+			await window.electronAPI.setProvider(providerName);
+			const aiConfig = await window.electronAPI.getAIConfig();
+			this.setState({
+				aiProvider: providerName,
+				providers: aiConfig?.providers || {},
+				providerApiKey: '',
+				saveMessage: `Switched to ${PROVIDER_INFO[providerName]?.name || providerName}`,
+				saveMessageType: 'success'
+			});
+			setTimeout(() => this.setState({ saveMessage: '' }), 3000);
+		}
 	}
 
-	async handleSaveApiKey() {
+	handleProviderApiKeyChange(e) {
+		this.setState({ providerApiKey: e.target.value });
+	}
+
+	async handleSaveProviderApiKey() {
 		if (typeof window !== 'undefined' && window.electronAPI) {
+			const { aiProvider, providerApiKey } = this.state;
 			this.setState({ isSaving: true });
-			await window.electronAPI.setApiKey(this.state.apiKey);
-			const apiKeyDisplay = await window.electronAPI.getApiKey();
+			await window.electronAPI.setProviderApiKey(aiProvider, providerApiKey);
+			const aiConfig = await window.electronAPI.getAIConfig();
 			this.setState({
-				apiKey: '',
-				apiKeyDisplay,
+				providerApiKey: '',
+				providers: aiConfig?.providers || {},
 				saveMessage: 'API key saved successfully!',
 				saveMessageType: 'success',
 				isSaving: false
 			});
 			setTimeout(() => this.setState({ saveMessage: '' }), 3000);
+		}
+	}
+
+	async handleProviderModelChange(e) {
+		if (typeof window !== 'undefined' && window.electronAPI) {
+			const { aiProvider } = this.state;
+			const model = e.target.value;
+			await window.electronAPI.setProviderModel(aiProvider, model);
+			const aiConfig = await window.electronAPI.getAIConfig();
+			this.setState({
+				providers: aiConfig?.providers || {},
+				saveMessage: 'Model updated!',
+				saveMessageType: 'success'
+			});
+			setTimeout(() => this.setState({ saveMessage: '' }), 2000);
+		}
+	}
+
+	handleProviderBaseUrlChange(e) {
+		this.setState({ providerBaseUrl: e.target.value });
+	}
+
+	async handleSaveProviderBaseUrl() {
+		if (typeof window !== 'undefined' && window.electronAPI) {
+			const { aiProvider, providerBaseUrl } = this.state;
+			this.setState({ isSaving: true });
+			await window.electronAPI.setProviderBaseUrl(aiProvider, providerBaseUrl);
+			const aiConfig = await window.electronAPI.getAIConfig();
+			this.setState({
+				providerBaseUrl: '',
+				providers: aiConfig?.providers || {},
+				saveMessage: 'Base URL saved!',
+				saveMessageType: 'success',
+				isSaving: false
+			});
+			setTimeout(() => this.setState({ saveMessage: '' }), 3000);
+		}
+	}
+
+	async handleTestConnection() {
+		if (typeof window !== 'undefined' && window.electronAPI) {
+			const { aiProvider } = this.state;
+			this.setState({ isTesting: true });
+			const result = await window.electronAPI.testConnection(aiProvider);
+			this.setState({
+				isTesting: false,
+				saveMessage: result.success ? 'Connection successful!' : `Connection failed: ${result.error}`,
+				saveMessageType: result.success ? 'success' : 'error'
+			});
+			setTimeout(() => this.setState({ saveMessage: '' }), 5000);
 		}
 	}
 
@@ -146,7 +234,10 @@ class SettingsPage extends Component {
 	}
 
 	render() {
-		const { menu, userName, apiKey, apiKeyDisplay, voiceEnabled, useClassicVoice, speechRate, saveMessage, saveMessageType, hasChanges, isSaving } = this.state;
+		const { menu, userName, voiceEnabled, useClassicVoice, speechRate, saveMessage, saveMessageType, hasChanges, isSaving, isTesting, aiProvider, providers, availableProviders, providerApiKey, providerBaseUrl } = this.state;
+		const currentProviderInfo = PROVIDER_INFO[aiProvider] || {};
+		const currentProviderConfig = providers[aiProvider] || {};
+		const currentProviderMeta = availableProviders.find(p => p.id === aiProvider) || {};
 
 		return (
 			<div className={styles.grid}>
@@ -218,44 +309,161 @@ class SettingsPage extends Component {
 
 				{menu === 'ai' && (
 					<div className={styles.content}>
+						{/* Provider Selection */}
 						<div className={styles.card}>
 							<div className={styles.cardHeader}>
 								<div className={styles.cardIcon}>🤖</div>
 								<div className={styles.cardTitle}>
-									<h3>xAI API Configuration</h3>
-									<p>Connect BonziBuddy to Grok for AI-powered conversations</p>
+									<h3>AI Provider</h3>
+									<p>Choose your preferred AI provider</p>
 								</div>
 							</div>
 
-							<div className={styles.formGroup}>
-								<label>xAI API Key</label>
-								<p style={{ fontSize: '13px', marginBottom: '12px' }}>
-									Get your API key from <a href="https://console.x.ai" target="_blank" rel="noopener noreferrer">console.x.ai</a>
-								</p>
-								<div className={styles.inputRow}>
-									<input
-										type="password"
-										className={styles.input}
-										placeholder="xai-..."
-										value={apiKey}
-										onChange={this.handleApiKeyChange}
-									/>
-									<button
-										className={CombineStyles(styles.btn, styles.btnPrimary)}
-										onClick={this.handleSaveApiKey}
-										disabled={!apiKey || isSaving}
+							<div className={styles.providerGrid}>
+								{Object.entries(PROVIDER_INFO).map(([id, info]) => (
+									<div
+										key={id}
+										className={CombineStyles(
+											styles.providerCard,
+											aiProvider === id && styles.providerCardActive
+										)}
+										onClick={() => this.handleProviderSelect(id)}
 									>
-										{isSaving ? 'Saving...' : 'Save Key'}
-									</button>
-								</div>
-								{apiKeyDisplay && (
-									<div className={styles.currentKey}>
-										Current: {apiKeyDisplay}
+										<div
+											className={styles.providerIcon}
+											style={{ backgroundColor: info.color }}
+										>
+											{info.icon}
+										</div>
+										<span className={styles.providerName}>{info.name}</span>
 									</div>
+								))}
+							</div>
+						</div>
+
+						{/* Provider Configuration */}
+						<div className={styles.card}>
+							<div className={styles.cardHeader}>
+								<div
+									className={styles.cardIcon}
+									style={{ backgroundColor: currentProviderInfo.color }}
+								>
+									{currentProviderInfo.icon}
+								</div>
+								<div className={styles.cardTitle}>
+									<h3>{currentProviderInfo.name} Configuration</h3>
+									<p>Configure your {currentProviderInfo.name} settings</p>
+								</div>
+							</div>
+
+							{/* API Key */}
+							{currentProviderMeta.requiresApiKey !== false && (
+								<div className={styles.formGroup}>
+									<label>API Key</label>
+									{currentProviderInfo.apiUrl && (
+										<p style={{ fontSize: '13px', marginBottom: '12px' }}>
+											Get your API key from <a href={currentProviderInfo.apiUrl} target="_blank" rel="noopener noreferrer">{currentProviderInfo.apiUrl.replace('https://', '')}</a>
+										</p>
+									)}
+									<div className={styles.inputRow}>
+										<input
+											type="password"
+											className={styles.input}
+											placeholder="Enter API key..."
+											value={providerApiKey}
+											onChange={this.handleProviderApiKeyChange}
+										/>
+										<button
+											className={CombineStyles(styles.btn, styles.btnPrimary)}
+											onClick={this.handleSaveProviderApiKey}
+											disabled={!providerApiKey || isSaving}
+										>
+											{isSaving ? 'Saving...' : 'Save Key'}
+										</button>
+									</div>
+									{currentProviderConfig.apiKey && (
+										<div className={styles.currentKey}>
+											Current: {currentProviderConfig.apiKey}
+										</div>
+									)}
+								</div>
+							)}
+
+							{/* Model Selection */}
+							<div className={styles.formGroup}>
+								<label>Model</label>
+								{aiProvider === 'custom' ? (
+									<input
+										type="text"
+										className={styles.input}
+										placeholder="Enter model name (e.g., llama2, mistral)"
+										value={currentProviderConfig.model || ''}
+										onChange={(e) => this.handleProviderModelChange(e)}
+									/>
+								) : (
+									<select
+										className={styles.select}
+										value={currentProviderConfig.model || ''}
+										onChange={this.handleProviderModelChange}
+									>
+										{(currentProviderMeta.models || []).map(model => (
+											<option key={model.id} value={model.id}>
+												{model.name}
+											</option>
+										))}
+									</select>
+								)}
+							</div>
+
+							{/* Base URL (for custom provider) */}
+							{aiProvider === 'custom' && (
+								<div className={styles.formGroup}>
+									<label>Base URL</label>
+									<p style={{ fontSize: '13px', marginBottom: '12px' }}>
+										The base URL for your OpenAI-compatible endpoint
+									</p>
+									<div className={styles.inputRow}>
+										<input
+											type="text"
+											className={styles.input}
+											placeholder="http://localhost:11434/v1"
+											value={providerBaseUrl || currentProviderConfig.baseUrl || ''}
+											onChange={this.handleProviderBaseUrlChange}
+										/>
+										<button
+											className={CombineStyles(styles.btn, styles.btnPrimary)}
+											onClick={this.handleSaveProviderBaseUrl}
+											disabled={!providerBaseUrl || isSaving}
+										>
+											{isSaving ? 'Saving...' : 'Save URL'}
+										</button>
+									</div>
+									{currentProviderConfig.baseUrl && !providerBaseUrl && (
+										<div className={styles.currentKey}>
+											Current: {currentProviderConfig.baseUrl}
+										</div>
+									)}
+								</div>
+							)}
+
+							{/* Test Connection */}
+							<div className={styles.testConnectionRow}>
+								<button
+									className={CombineStyles(styles.btn, styles.btnSuccess)}
+									onClick={this.handleTestConnection}
+									disabled={isTesting}
+								>
+									{isTesting ? 'Testing...' : 'Test Connection'}
+								</button>
+								{saveMessage && menu === 'ai' && (
+									<span className={CombineStyles(styles.inlineStatus, styles[saveMessageType])}>
+										{saveMessageType === 'success' ? '✓' : '✕'} {saveMessage}
+									</span>
 								)}
 							</div>
 						</div>
 
+						{/* Voice Settings */}
 						<div className={styles.card}>
 							<div className={styles.cardHeader}>
 								<div className={styles.cardIcon}>🔊</div>
@@ -302,6 +510,7 @@ class SettingsPage extends Component {
 							</div>
 						</div>
 
+						{/* Conversation History */}
 						<div className={styles.card}>
 							<div className={styles.cardHeader}>
 								<div className={styles.cardIcon}>💬</div>
@@ -318,17 +527,22 @@ class SettingsPage extends Component {
 								Clear Conversation History
 							</button>
 						</div>
-
-						{saveMessage && (
-							<div className={CombineStyles(styles.statusMessage, styles[saveMessageType])}>
-								{saveMessageType === 'success' ? '✓' : '✕'} {saveMessage}
-							</div>
-						)}
 					</div>
 				)}
 
 				{menu === 'copyright' && (
 					<div className={styles.content}>
+						{/* 2026 Rebuild Credit */}
+						<div className={CombineStyles(styles.card, styles.rebuildCredit)}>
+							<h3>2026 Rebuild</h3>
+							<p>
+								Modern rebuild of BonziBuddy by <a href="https://nytemode.com" target="_blank" rel="noopener noreferrer">nytemode</a>
+							</p>
+							<p>
+								<a href="https://github.com/NYTEMODEONLY/BonziBuddy" target="_blank" rel="noopener noreferrer">View on GitHub</a>
+							</p>
+						</div>
+
 						<div className={CombineStyles(styles.card, styles.copyrightSection)}>
 							<h3>BonziBuddy</h3>
 							<p>Copyright (c) 1995-2000 BONZI.COM Software</p>

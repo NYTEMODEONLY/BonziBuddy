@@ -2,7 +2,7 @@
   "name": "bonzibuddy",
   "private": true,
   "description": "Your very own desktop personal digital assistant",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "author": "Leondro Lio <github@leondrolio.com>",
   "main": "electron.js",
   "dependencies": {
