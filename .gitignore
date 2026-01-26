@@ -53,6 +53,19 @@ typings/
 
 # dotenv environment variables file
 .env
+.env.*
+.env.local
+.env.*.local
+
+# Sensitive/credential files
+*.pem
+*.key
+credentials.json
+secrets.json
+config.local.js
+
+# Electron store data (API keys stored here)
+electron-store/
 
 # gatsby files
 .cache/
@@ -70,3 +83,9 @@ yarn-error.log
 
 # Temporary
 tmp/
+
+# Build output
+dist/
+*.dmg
+*.exe
+*.AppImage
